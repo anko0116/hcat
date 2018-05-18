@@ -32,10 +32,10 @@ def run_server(port, commandShell):
         print output
         
         #access the server's terminal
-        clientSocket.send("hcat Command Shell\n")
+        clientSocket.send("hcat Command Shell")
         if commandShell:
             while True:
-                clientSocket.send("hcat >> ")
+                clientSocket.send("hcat >>")
                 command = clientSocket.recv(1024)
                 command = command.rstrip()
                 response = ""
@@ -45,7 +45,7 @@ def run_server(port, commandShell):
                                                        stderr = subprocess.STDOUT,
                                                        shell = True)
                 except:
-                    response = "Command failed\n"
+                    response = "Command failed"
                     
                 clientSocket.send(response)
                     
@@ -54,24 +54,41 @@ def run_server(port, commandShell):
         #while True:
 
 def run_client(port, targetAddr):
+    #https://stackoverflow.com/questions/1708835/python-socket-receive-incoming-packets-always-have-a-different-size
+    #useful resource for network packet
     
     #create client socket and connect to the server
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((targetAddr, port))
-    connectionMsg = client.recv(1024) #receive the connection message "Connection Successful!"
+    connectionMsg = client.recv() #receive the connection message "Connection Successful!"
+    print connectionMsg
+    connectionMsg = client.recv() #receive "hcat command shell"
     print connectionMsg
     
     while True:
         #receives "hcat >> "
-        connectionMsg = client.recv(1024) 
-        print connectionMsg
+        connectionMsg = client.recv() 
+        print connectionMsg,
         
         #receive input from user and send it to server
         clientMsg = raw_input()
         client.send(clientMsg)
         
         #receive response
-        print client.recv(4096) 
+        print client.recv()
+        
+        
+#Taken from "https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data"
+def recvall(sock):
+    BUFF_SIZE = 4096 # 4 KiB
+    data = b''
+    while True:
+        part = sock.recv(BUFF_SIZE)
+        data += part
+        if len(part) < BUFF_SIZE:
+            # either 0 or end of data
+            break
+    return data
         
         
 def main():
