@@ -19,18 +19,17 @@ def check_port_range(argument):
         print ("Error: port number is out of range")
         sys.exit(0)
         
-#Taken from "https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data"
-def recvall(sock):
-    BUFF_SIZE = 4096 # 4 KiB
-    data = ""
-    while True:
-        msg = sock.recv(BUFF_SIZE)
-        data += msg
-        if len(msg) < BUFF_SIZE:
-            # either 0 or end of data
-            break
-    return data
-
+def port_scanner(targetAddr):
+    testSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    
+    for i in range (1,65536):
+        try:
+            testSocket.connect_ex((targetAddr, i))
+            print ("Connecting to " + targetAddr, end='')
+            print (" at port", i)
+        except:
+            print ("didnt work")
+        
 def run_server(port, commandShell):
     
     #create socket, bind, listen
@@ -41,14 +40,14 @@ def run_server(port, commandShell):
     while True:
         clientSocket, clientAddr = server.accept()
         output = "[hcat]: Connection Successful!\n"
-        clientSocket.send(output) #send connection message
-        print (output)
+        clientSocket.sendall(output) #send connection message
+        print (output, end='')
         
         #access the server's terminal
-        clientSocket.send("[hcat]: Command Shell\n")
         if commandShell:
+            clientSocket.sendall("[hcat]: Command Shell\n")
             while True:
-                clientSocket.send("[hcat]: $ ")
+                clientSocket.sendall("[hcat]: $ ")
                 command = clientSocket.recv(1024)
                 command = command.rstrip()
                 response = ""
@@ -58,9 +57,10 @@ def run_server(port, commandShell):
                                                        stderr = subprocess.STDOUT,
                                                        shell = True)
                 except:
-                    response = "Command failed"
+                    response = "[hcat]: Command failed\n"
                     
                 clientSocket.send(response)
+                print (response)
                     
                 
         #loop for receiving and sending messages
@@ -74,19 +74,26 @@ def run_client(port, targetAddr):
     client.connect((targetAddr, port))
     
     #receive the connection message "[hcat]: Connection Successful!"
-    #receive "[hcat]: Command shell"
-    connectionMsg = client.recv(1024) 
+    connectionMsg = client.recv(32) 
     print (connectionMsg, end='')
     sys.stdout.flush()
     
+    #receive "[hcat]: Command shell"
+    connectionMsg = client.recv(22) 
+    print (connectionMsg, end='')
+    sys.stdout.flush()    
+      
+    
     while True:
         #receives "hcat >> "
-        connectionMsg = recvall(client) 
+        connectionMsg = client.recv(10) 
         print (connectionMsg, end='')
         sys.stdout.flush()
         
         #receive input from user and send it to server
         clientMsg = raw_input()
+        if clientMsg in ("q", "quit"):
+            break
         client.send(clientMsg)
         
         #receive response
@@ -101,7 +108,7 @@ def main():
     
     #get the command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hlp:t:c", ["help", "listen", "port=", "target=", "command"])
+        opts, args = getopt.getopt(sys.argv[1:], "hlp:t:cz:", ["help", "listen", "port=", "target=", "command", "scanner="])
     except getopt.GetoptError as error:
         print (str(error))
         help_message()
@@ -111,6 +118,7 @@ def main():
     port = 0
     targetAddr = ""
     commandShell = False
+    portScanner = False
     
     for options, argument in opts:
         if options in ("-h", "--help"):
@@ -124,15 +132,23 @@ def main():
             targetAddr = argument
         elif options in ("-c", "--command"):
             commandShell = True
+        elif options in ("-z"):
+            portScanner = True
+            targetAddr = argument
             
+    #port scanner
+    if portScanner:
+        port_scanner(targetAddr)
+    
     #server side functions
-    if listen:
+    elif listen:
         run_server(port, commandShell)
         
     #client side functions
-    if not listen:
+    elif not listen:
         run_client(port, targetAddr)
         
+    print ("[hcat]: Closing hcat.py")
         
 main()
     
