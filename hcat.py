@@ -12,6 +12,18 @@ def help_message():
     print
     sys.exit(0)
     
+def recvall(sock):
+    message = ""
+    
+    #take in all the messages
+    while True:
+        buffer = sock.recv(1024)
+        message += buffer
+        if len(buffer) < 1024:
+            break
+        
+    return message
+
 def check_port_range(argument):
     
     #check if the port number is within the range
@@ -25,8 +37,9 @@ def port_scanner(targetAddr):
     for i in range (1,65536):
         try:
             testSocket.connect_ex((targetAddr, i))
-            print ("Connecting to " + targetAddr, end='')
-            print (" at port", i)
+            #print ("Connecting to " + targetAddr, end='')
+            #print (" at port", i)
+            print ("Port", i, "open at", targetAddr)
         except:
             print ("didnt work")
         
@@ -35,36 +48,42 @@ def run_server(port, commandShell):
     #create socket, bind, listen
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("0.0.0.0", port)) #server listens to all interfaces
-    server.listen(5) 
+    server.listen(1) 
     
     while True:
         clientSocket, clientAddr = server.accept()
         output = "[hcat]: Connection Successful!\n"
         clientSocket.sendall(output) #send connection message
         print (output, end='')
+        print ("Connected from", clientAddr[0], clientAddr[1])
         
-        #access the server's terminal
+        #access to terminal
         if commandShell:
             clientSocket.sendall("[hcat]: Command Shell\n")
+            clientSocket.sendall("[hcat]: $ ")
+            sendMessage = ""
+            
             while True:
-                clientSocket.sendall("[hcat]: $ ")
-                command = clientSocket.recv(1024)
-                command = command.rstrip()
+                sendMessage = recvall(clientSocket)
+                sendMessage = sendMessage.rstrip()
                 response = ""
                 
-                try:
-                    response = subprocess.check_output(command, 
+                try: 
+                    response = subprocess.check_output(sendMessage,
                                                        stderr = subprocess.STDOUT,
                                                        shell = True)
                 except:
                     response = "[hcat]: Command failed\n"
                     
-                clientSocket.send(response)
-                print (response)
-                    
+                if len(response) == 0:
+                    response = "[hcat]: Command executed, but no respones was generated"
                 
-        #loop for receiving and sending messages
-        #while True:
+                print(response)
+                response += "\n[hcat]: $ "
+                clientSocket.sendall(response)
+            
+            
+        #sending and receiving messages
 
 #useful resource for network packet: https://stackoverflow.com/questions/1708835/python-socket-receive-incoming-packets-always-have-a-different-size   
 def run_client(port, targetAddr):
@@ -74,31 +93,26 @@ def run_client(port, targetAddr):
     client.connect((targetAddr, port))
     
     #receive the connection message "[hcat]: Connection Successful!"
-    connectionMsg = client.recv(32) 
+    connectionMsg = recvall(client)
+    connectionMsg += recvall(client)
     print (connectionMsg, end='')
-    sys.stdout.flush()
-    
-    #receive "[hcat]: Command shell"
-    connectionMsg = client.recv(22) 
-    print (connectionMsg, end='')
-    sys.stdout.flush()    
-      
+    sys.stdout.flush() 
     
     while True:
-        #receives "hcat >> "
-        connectionMsg = client.recv(10) 
-        print (connectionMsg, end='')
-        sys.stdout.flush()
-        
         #receive input from user and send it to server
-        clientMsg = raw_input()
+        clientMsg = raw_input("")
         if clientMsg in ("q", "quit"):
             break
         client.send(clientMsg)
         
         #receive response
-        connectionMsg = client.recv(4096)
-        print (connectionMsg)
+        connectionMsg = ""
+        while True:
+            connectionMsg += client.recv(1024)
+            if len(connectionMsg) < 1024:
+                break
+            
+        print (connectionMsg, end='')
         sys.stdout.flush()
         
 def main():
