@@ -3,13 +3,15 @@ import socket
 import getopt
 import sys
 import subprocess
+import os
 
 def help_message():
     print
     print ("anko0116's mediocre recreation of the netcat")
     print ("----------------------------------")
-    print ("Usage: python hcat.py -t targetHost -p port -l -c")
-    print
+    print ("Example Usage for client: python hcat.py -t targetHost -p port")
+    print ("Example Usage for server: python hcat.py -p port -l")
+    print ()
     sys.exit(0)
     
 def recvall(sock):
@@ -43,47 +45,61 @@ def port_scanner(targetAddr):
         except:
             print ("didnt work")
         
+def command_shell(clientSocket):
+    clientSocket.sendall("[hcat]: Command Shell\n")
+    clientSocket.sendall("[hcat]: " + os.getcwd() + " $ ")
+    sendMessage = ""
+        
+    while True:
+        #receive input from the client
+        sendMessage = recvall(clientSocket)
+        sendMessage = sendMessage.rstrip()
+        response = ""
+            
+        #Executing commands
+        try: 
+            #quitting hcat
+            if sendMessage in ["q", "quit", "quit()"]:
+                return
+                
+            #changing directory in the shell
+            if "cd" in sendMessage:
+                command, parameter = sendMessage.split(" ", 1)
+                os.chdir(parameter)                    
+                    
+            #create a new subprocess to run the client input on the terminal
+            else:
+                response = subprocess.check_output(sendMessage,
+                                                   stderr = subprocess.STDOUT,
+                                                   shell = True)
+        except:
+            response = "[hcat]: Command failed\n"
+        
+        print("[hcat]: Response\n" + response)
+        response += "\n[hcat]: " + os.getcwd() + " $ "
+        clientSocket.sendall(response)    
+
 def run_server(port, commandShell):
     
     #create socket, bind, listen
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("0.0.0.0", port)) #server listens to all interfaces
-    server.listen(1) 
+    server.listen(5) 
     
-    while True:
-        clientSocket, clientAddr = server.accept()
-        output = "[hcat]: Connection Successful!\n"
-        clientSocket.sendall(output) #send connection message
-        print (output, end='')
-        print ("Connected from", clientAddr[0], clientAddr[1])
+    #make connection
+    clientSocket, clientAddr = server.accept()
+    output = "[hcat]: Connection Successful!\n"
+    clientSocket.sendall(output) #send connection message
+    print (output, end='')
+    print ("Connected from", clientAddr[0], clientAddr[1])
         
-        #access to terminal
-        if commandShell:
-            clientSocket.sendall("[hcat]: Command Shell\n")
-            clientSocket.sendall("[hcat]: $ ")
-            sendMessage = ""
-            
-            while True:
-                sendMessage = recvall(clientSocket)
-                sendMessage = sendMessage.rstrip()
-                response = ""
-                
-                try: 
-                    response = subprocess.check_output(sendMessage,
-                                                       stderr = subprocess.STDOUT,
-                                                       shell = True)
-                except:
-                    response = "[hcat]: Command failed\n"
-                    
-                if len(response) == 0:
-                    response = "[hcat]: Command executed, but no respones was generated"
-                
-                print(response)
-                response += "\n[hcat]: $ "
-                clientSocket.sendall(response)
+    #(-c) command shell option
+    if commandShell:
+        command_shell(clientSocket)
+        server.close()
             
             
-        #sending and receiving messages
+    #sending and receiving messages (simple connection)
 
 #useful resource for network packet: https://stackoverflow.com/questions/1708835/python-socket-receive-incoming-packets-always-have-a-different-size   
 def run_client(port, targetAddr):
@@ -95,22 +111,22 @@ def run_client(port, targetAddr):
     #receive the connection message "[hcat]: Connection Successful!"
     connectionMsg = recvall(client)
     connectionMsg += recvall(client)
+    connectionMsg += recvall(client)
     print (connectionMsg, end='')
     sys.stdout.flush() 
     
     while True:
         #receive input from user and send it to server
         clientMsg = raw_input("")
-        if clientMsg in ("q", "quit"):
-            break
         client.send(clientMsg)
         
+        #quitting hcat
+        if clientMsg in ["q", "quit", "quit()"]:
+            client.close()
+            break        
+        
         #receive response
-        connectionMsg = ""
-        while True:
-            connectionMsg += client.recv(1024)
-            if len(connectionMsg) < 1024:
-                break
+        connectionMsg = recvall(client)
             
         print (connectionMsg, end='')
         sys.stdout.flush()
