@@ -12,6 +12,12 @@ def help_message():
     print ("Example Usage for client: python hcat.py -t targetHost -p port")
     print ("Example Usage for server: python hcat.py -p port -l")
     print ()
+    print ("     -h --help                     help menu")
+    print ("     -t --target [targetHost]      target server to connect to")
+    print ("     -p --port   [port]            specific port to make the connection")
+    print ("     -c --command                  terminal")
+    print ("     -l --listen                   listen to connections")
+    print ("     -z --scanner                  scans all ports for availability")
     sys.exit(0)
     
 def recvall(sock):
@@ -39,8 +45,6 @@ def port_scanner(targetAddr):
     for i in range (1,65536):
         try:
             testSocket.connect_ex((targetAddr, i))
-            #print ("Connecting to " + targetAddr, end='')
-            #print (" at port", i)
             print ("Port", i, "open at", targetAddr)
         except:
             print ("didnt work")
